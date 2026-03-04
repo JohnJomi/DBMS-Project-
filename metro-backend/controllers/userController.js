@@ -147,8 +147,16 @@ const bookTicket = async (req, res) => {
         if (users.length === 0) return res.status(404).json({ error: 'User not found.' });
 
         // Verify route
-        const [routes] = await db.query('SELECT route_id FROM routes WHERE route_id = ?', [route_id]);
+        const [routes] = await db.query('SELECT route_id, metro_id FROM routes WHERE route_id = ?', [route_id]);
         if (routes.length === 0) return res.status(404).json({ error: 'Route not found.' });
+
+        // Check seat availability on the metro for this route
+        const routeMetroId = routes[0].metro_id;
+        const [metroRows] = await db.query('SELECT metro_seat_num FROM metro WHERE metro_id = ?', [routeMetroId]);
+        if (metroRows.length === 0) return res.status(404).json({ error: 'Metro not found for this route.' });
+        if (metroRows[0].metro_seat_num <= 0) {
+            return res.status(400).json({ error: 'Metro is full. No seats available on this route.' });
+        }
 
         // Verify both stations exist on this route
         const [stationCheck] = await db.query(

@@ -36,5 +36,6 @@ router.get('/users', adminController.getAllUsers);
 router.get('/reports', adminController.getReports);
 router.get('/reports/routes', adminController.getRouteReport);
 router.get('/reports/monthly', adminController.getMonthlyReport);
+router.get('/seat-availability', adminController.getSeatAvailability);
 
 module.exports = router;

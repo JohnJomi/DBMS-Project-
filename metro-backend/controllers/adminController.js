@@ -287,6 +287,35 @@ const getMonthlyReport = async (req, res) => {
     }
 };
 
+// ─── SEAT AVAILABILITY ────────────────────────────────────────
+
+// GET /api/admin/seat-availability
+// Detailed breakdown per route: metro name, total capacity, booked, available
+const getSeatAvailability = async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            `SELECT
+                r.route_id,
+                r.route_name,
+                m.metro_id,
+                m.metro_name,
+                m.metro_num,
+                m.metro_seat_num AS available_seats,
+                COUNT(t.ticket_id) AS booked_seats,
+                (m.metro_seat_num + COUNT(t.ticket_id)) AS total_seats
+             FROM routes r
+             INNER JOIN metro m ON r.metro_id = m.metro_id
+             LEFT JOIN tickets t ON t.metro_id = m.metro_id AND t.route_id = r.route_id
+             GROUP BY r.route_id, r.route_name, m.metro_id, m.metro_name, m.metro_num, m.metro_seat_num
+             ORDER BY r.route_id`
+        );
+        res.json({ seat_availability: rows });
+    } catch (err) {
+        console.error('getSeatAvailability error:', err.message);
+        res.status(500).json({ error: 'Failed to fetch seat availability.' });
+    }
+};
+
 module.exports = {
     getMetros,
     getRoutes,
@@ -299,5 +328,6 @@ module.exports = {
     getReports,
     getRouteReport,
     getMonthlyReport,
-    addStation
+    addStation,
+    getSeatAvailability
 };

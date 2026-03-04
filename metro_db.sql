@@ -72,10 +72,12 @@ CREATE TABLE IF NOT EXISTS tickets (
     ticket_id    INT AUTO_INCREMENT PRIMARY KEY,
     user_id      INT,
     route_id     INT,
+    metro_id     INT,
     fare         DECIMAL(10,2) NOT NULL,
     booking_date DATETIME,
     FOREIGN KEY (user_id)  REFERENCES users(user_id),
-    FOREIGN KEY (route_id) REFERENCES routes(route_id)
+    FOREIGN KEY (route_id) REFERENCES routes(route_id),
+    FOREIGN KEY (metro_id) REFERENCES metro(metro_id)
 );
 
 -- ============================================================
@@ -155,21 +157,40 @@ INSERT INTO routes (route_name, metro_id) VALUES
 
 DELIMITER $$
 
--- Trigger 1: BEFORE INSERT on tickets → auto-set booking_date
+-- Trigger 1: BEFORE INSERT on tickets → auto-set booking_date + auto-set metro_id from route + decrement seats
 CREATE TRIGGER before_ticket_insert
 BEFORE INSERT ON tickets
 FOR EACH ROW
 BEGIN
+    DECLARE v_metro_id INT;
+    DECLARE v_seats INT;
+
     SET NEW.booking_date = NOW();
+
+    -- Auto-set metro_id from the route
+    SELECT metro_id INTO v_metro_id FROM routes WHERE route_id = NEW.route_id;
+    SET NEW.metro_id = v_metro_id;
+
+    -- Check seat availability
+    SELECT metro_seat_num INTO v_seats FROM metro WHERE metro_id = v_metro_id;
+    IF v_seats <= 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Metro is full. No seats available.';
+    END IF;
+
+    -- Decrement available seats
+    UPDATE metro SET metro_seat_num = metro_seat_num - 1 WHERE metro_id = v_metro_id;
 END$$
 
--- Trigger 2: AFTER DELETE on tickets → log into ticket_log
+-- Trigger 2: AFTER DELETE on tickets → log into ticket_log + increment seats back
 CREATE TRIGGER after_ticket_delete
 AFTER DELETE ON tickets
 FOR EACH ROW
 BEGIN
     INSERT INTO ticket_log (ticket_id, deleted_date)
     VALUES (OLD.ticket_id, NOW());
+
+    -- Increment available seats back when ticket is cancelled
+    UPDATE metro SET metro_seat_num = metro_seat_num + 1 WHERE metro_id = OLD.metro_id;
 END$$
 
 DELIMITER ;
